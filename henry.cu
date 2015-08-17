@@ -45,7 +45,7 @@ __device__ double device_R = 8.314;
 double host_R = 8.314;
 
 // Number of times to call GPU kernel
-int ncycles = 100;
+int ncycles = 1000;
 
 // Compute the Boltzmann factor of methane at point (x, y, z) inside structure
 //   Loop over all atoms of unit cell of crystal structure

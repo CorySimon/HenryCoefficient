@@ -171,7 +171,7 @@ int main() {
     //  KH = < e^{-E/(kB * T)} > / (R * T)
     //  Brackets denote average over space
     //
-    int ninsertions = 1638400;
+    int ninsertions = 16384000;
     double KH = 0.0;  // will be Henry coefficient
     for (int i = 0; i < ninsertions; i++) {
         // generate random position in structure
