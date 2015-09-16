@@ -33,7 +33,7 @@ double R = 8.314;
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
 double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
                                        StructureAtom * structureatoms,
-                                       double natoms,
+                                       int natoms,
                                        double L) {
     // (x, y, z) : Cartesian coords of methane molecule
     // structureatoms : pointer array storing info on unit cell of crystal structure
