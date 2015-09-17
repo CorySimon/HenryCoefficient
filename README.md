@@ -8,6 +8,6 @@ These codes were used to generate the results in the Parallel For All Blog.
 
 :honeybee: The 'henry_serial.cc' code is the C++ code parallelized using OpenMP. See the:
 
-    #pragma parallel for
+    #pragma omp parallel for
 
 that parallelizes the loop.
