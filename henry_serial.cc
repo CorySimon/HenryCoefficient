@@ -163,7 +163,8 @@ int main() {
     // Set up random number generator
     //
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::mt19937 generator(seed);  // Mersenne Twister algo
+    std::default_random_engine generator(seed);  // default
+//    std::mt19937 generator(seed);  // Mersenne Twister algo
     std::uniform_real_distribution<double> uniform01(0.0, 1.0); // uniformly distributed real no in [0,1]
 
     //
@@ -173,6 +174,7 @@ int main() {
     //
     int ninsertions = 16384000;
     double KH = 0.0;  // will be Henry coefficient
+    #pragma omp parallel for
     for (int i = 0; i < ninsertions; i++) {
         // generate random position in structure
         double x = L * uniform01(generator);

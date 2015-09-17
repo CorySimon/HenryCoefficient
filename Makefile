@@ -14,10 +14,10 @@ henry.o: henry.cu
 	$(CC) -c $(NVCCFLAGS) henry.cu
 
 henry_serial: henry_serial.o
-	g++ -o $@ henry_serial.o
+	g++ -o $@ henry_serial.o -fopenmp
 
 henry_serial.o: henry_serial.cc
-	g++ -c henry_serial.cc -std=c++11
+	g++ -c henry_serial.cc -std=c++11 -fopenmp
 
 clean: 
 	rm *.o 

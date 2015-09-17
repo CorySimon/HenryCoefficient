@@ -19,6 +19,8 @@
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
 
+//#define NUMBLOCKS 64
+//#define NUMTHREADS 256
 #define NUMBLOCKS 64
 #define NUMTHREADS 256
 
@@ -45,7 +47,8 @@ __device__ double device_R = 8.314;
 double host_R = 8.314;
 
 // Number of times to call GPU kernel
-int ncycles = 1000;
+int ninsertions = 1000 * 256 * 64;
+int ncycles = floor(ninsertions / (NUMTHREADS * NUMBLOCKS));
 
 // Compute the Boltzmann factor of methane at point (x, y, z) inside structure
 //   Loop over all atoms of unit cell of crystal structure
@@ -259,7 +262,8 @@ int main() {
     // at this point KH = < e^{-E/(kB/T)} >
     KH = KH / (host_R * host_T);
     printf("Henry constant = %e mol/(m3 - Pa)\n", KH);
-    printf("Number of insertions: %d\n", NUMBLOCKS * NUMTHREADS * ncycles);
+    printf("Number of actual insertions: %d\n", NUMBLOCKS * NUMTHREADS * ncycles);
+    printf("Number of times we called the GPU kernel: %d\n", ncycles);
     
     // Clean-up
     CUDA_CALL(cudaFree(devMTGPStates));
