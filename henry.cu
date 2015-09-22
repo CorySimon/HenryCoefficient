@@ -19,8 +19,6 @@
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
 
-//#define NUMBLOCKS 64
-//#define NUMTHREADS 256
 #define NUMBLOCKS 64
 #define NUMTHREADS 256
 
@@ -99,11 +97,11 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
 // Calls function to compute Boltzmann factor at this point
 // Stores Boltzmann factor computed at this thread in deviceBoltzmannFactors
 __global__ void PerformInsertions(curandStateMtgp32 *state, 
-                                  double * deviceBoltzmannFactors, 
+                                  double * boltzmannFactors, 
                                   const StructureAtom * __restrict__ structureatoms, 
                                   int natoms, double L) {
     // state : random number generator
-    // deviceBoltzmannFactors : pointer array in which to store computed Boltzmann factors
+    // boltzmannFactors : pointer array in which to store computed Boltzmann factors
     // structureatoms : pointer array storing info on unit cell of crystal structure
     // natoms : number of atoms in crystal structure
     // L : box length
@@ -114,8 +112,8 @@ __global__ void PerformInsertions(curandStateMtgp32 *state,
     double y = L * curand_uniform_double(&state[blockIdx.x]);
     double z = L * curand_uniform_double(&state[blockIdx.x]);
 
-    // Compute Boltzmann factor, store in deviceBoltzmannFactors
-    deviceBoltzmannFactors[id] = ComputeBoltzmannFactorAtPoint(x, y, z, structureatoms, natoms, L);
+    // Compute Boltzmann factor, store in boltzmannFactors
+    boltzmannFactors[id] = ComputeBoltzmannFactorAtPoint(x, y, z, structureatoms, natoms, L);
 }
 
 int main() {
@@ -140,7 +138,7 @@ int main() {
     //
     // Import unit cell of nanoporous material IRMOF-1
     //
-    StructureAtom * hostStructureatoms;  // store data in pointer array here
+    StructureAtom *structureatoms;  // store data in pointer array here
     // open crystal structure file
     std::ifstream materialfile("IRMOF-1.cssr");
     if (materialfile.fail()) {
@@ -171,8 +169,9 @@ int main() {
     // waste line
     getline(materialfile, line);
 
-    // Allocate space for material atoms and epsilons/sigmas on host
-    hostStructureatoms = (StructureAtom *) malloc(natoms * sizeof(StructureAtom));
+    // Allocate space for material atoms and epsilons/sigmas on both host and device
+    //   using unified memory
+    CUDA_CALL(cudaMallocManaged(&structureatoms, natoms * sizeof(StructureAtom)));
 
     // read atom coordinates
     for (int i = 0; i < natoms; i++) {
@@ -185,39 +184,26 @@ int main() {
         std::string element;
 
         istream >> atomno >> element >> xf >> yf >> zf;
-        // load hostStructureatoms
-        hostStructureatoms[i].x = L * xf;
-        hostStructureatoms[i].y = L * yf;
-        hostStructureatoms[i].z = L * zf;
+        // load structureatoms
+        structureatoms[i].x = L * xf;
+        structureatoms[i].y = L * yf;
+        structureatoms[i].z = L * zf;
 
-        hostStructureatoms[i].epsilon = epsilons[element];
-        hostStructureatoms[i].sigma = sigmas[element];
+        structureatoms[i].epsilon = epsilons[element];
+        structureatoms[i].sigma = sigmas[element];
 
 //        printf("%d. %s, (%f, %f, %f), eps = %f, sig = %f\n", 
 //            atomno, element.c_str(), 
-//            hostStructureatoms[i].x, hostStructureatoms[i].y, hostStructureatoms[i].z,
-//            hostStructureatoms[i].epsilon,
-//            hostStructureatoms[i].sigma);
+//            structureatoms[i].x, structureatoms[i].y, structureatoms[i].z,
+//            structureatoms[i].epsilon,
+//            structureatoms[i].sigma);
     }
     
     //
-    // Allocate space for storing structure atoms of unit cell of crystal structure to the device
-    // Copy hostStructureAtoms to device
+    // Allocate space for storing Botlzmann factors computed on each thread using unified memory
     //
-    StructureAtom * deviceStructureatoms;
-    CUDA_CALL(cudaMalloc((void **) &deviceStructureatoms, natoms * sizeof(StructureAtom)));
-    // Copy hostStructureAtoms to device
-    CUDA_CALL(cudaMemcpy(deviceStructureatoms, hostStructureatoms, natoms * sizeof(StructureAtom), cudaMemcpyHostToDevice));
-    
-    //
-    // Allocate space for storing Botlzmann factors computed on each thread
-    //
-    // on host
-    double * hostBoltzmannFactors = (double *) calloc(NUMBLOCKS * NUMTHREADS, sizeof(double));
-    
-    // on device 
-    double * deviceBoltzmannFactors;
-    CUDA_CALL(cudaMalloc((void **) &deviceBoltzmannFactors, NUMBLOCKS * NUMTHREADS * sizeof(double)));
+    double * boltzmannFactors;
+    CUDA_CALL(cudaMallocManaged(&boltzmannFactors, NUMBLOCKS * NUMTHREADS, sizeof(double)));
     
     //
     // Set up random number generator on device
@@ -248,14 +234,12 @@ int main() {
     double KH = 0.0;  // will be Henry coefficient
     for (int cycle = 0; cycle < ncycles; cycle++) {
         //  Perform Monte Carlo insertions in parallel on the GPU.
-        PerformInsertions<<<NUMBLOCKS, NUMTHREADS>>>(devMTGPStates, deviceBoltzmannFactors, deviceStructureatoms, natoms, L);
+        PerformInsertions<<<NUMBLOCKS, NUMTHREADS>>>(devMTGPStates, boltzmannFactors, structureatoms, natoms, L);
         cudaDeviceSynchronize();
-        // Copy Boltzmann factors stored on device to host
-        CUDA_CALL(cudaMemcpy(hostBoltzmannFactors, deviceBoltzmannFactors, NUMBLOCKS * NUMTHREADS * sizeof(double), cudaMemcpyDeviceToHost));
 
         // Compute Henry coefficient from the sampled Boltzmann factors
         for(int i = 0; i < NUMBLOCKS * NUMTHREADS; i++) {
-            KH += hostBoltzmannFactors[i];
+            KH += boltzmannFactors[i];
         }
     }
     // take averageBoltzmann constant
@@ -268,7 +252,7 @@ int main() {
     
     // Clean-up
     CUDA_CALL(cudaFree(devMTGPStates));
-    CUDA_CALL(cudaFree(deviceBoltzmannFactors));
-    free(hostBoltzmannFactors);
+    CUDA_CALL(cudaFree(structureatoms));
+    CUDA_CALL(cudaFree(boltzmannFactors));
     return EXIT_SUCCESS;
 }
