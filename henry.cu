@@ -39,12 +39,10 @@ struct StructureAtom {
 };
 
 // temperature, Kelvin
-__device__ double device_T = 298.0; 
-double host_T = 298.0;
+const double T = 298.0; 
 
 // Universal gas constant, m3 - Pa / (K - mol)
-__device__ double device_R = 8.314; 
-double host_R = 8.314;
+const double R = 8.314; 
 
 // Number of times to call GPU kernel
 int ninsertions = 1000 * 256 * 64;
@@ -88,13 +86,13 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
             dy = dy + L;
 
         // distance
-        double r = sqrt(dx*dx + dy*dy + dz*dz);
+        double rinv = rsqrt(dx*dx + dy*dy + dz*dz);
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
         // Lennard-Jones potential (not efficient, but for clarity)
-        E += 4.0 * structureatoms[i].epsilon * (pow(structureatoms[i].sigma / r, 12) - pow(structureatoms[i].sigma / r, 6));
+        E += 4.0 * structureatoms[i].epsilon * (pow(structureatoms[i].sigma * rinv, 12) - pow(structureatoms[i].sigma * rinv, 6));
     }
-    return exp(-E / (device_R * device_T));  // return Boltzmann factor
+    return exp(-E / (R * T));  // return Boltzmann factor
 }
 
 // Inserts a methane molecule at a random position inside the structure
@@ -260,7 +258,7 @@ int main() {
     // take averageBoltzmann constant
     KH = KH / (NUMBLOCKS * NUMTHREADS * ncycles);
     // at this point KH = < e^{-E/(kB/T)} >
-    KH = KH / (host_R * host_T);
+    KH = KH / (R * T);
     printf("Henry constant = %e mol/(m3 - Pa)\n", KH);
     printf("Number of actual insertions: %d\n", NUMBLOCKS * NUMTHREADS * ncycles);
     printf("Number of times we called the GPU kernel: %d\n", ncycles);
