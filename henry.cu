@@ -53,9 +53,9 @@ int ncycles = floor(ninsertions / (NUMTHREADS * NUMBLOCKS));
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
 __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
-                                       StructureAtom * structureatoms,
-                                       double natoms,
-                                       double L) {
+                                                const StructureAtom * __restrict__ structureatoms,
+                                                double natoms,
+                                                double L) {
     // (x, y, z) : Cartesian coords of methane molecule
     // structureatoms : pointer array storing info on unit cell of crystal structure
     // natoms : number of atoms in crystal structure
@@ -98,7 +98,10 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
 // Inserts a methane molecule at a random position inside the structure
 // Calls function to compute Boltzmann factor at this point
 // Stores Boltzmann factor computed at this thread in deviceBoltzmannFactors
-__global__ void PerformInsertions(curandStateMtgp32 *state, double * deviceBoltzmannFactors, StructureAtom * structureatoms, int natoms, double L) {
+__global__ void PerformInsertions(curandStateMtgp32 *state, 
+                                  double * __restrict__ deviceBoltzmannFactors, 
+                                  const StructureAtom * __restrict__ structureatoms, 
+                                  int natoms, double L) {
     // state : random number generator
     // deviceBoltzmannFactors : pointer array in which to store computed Boltzmann factors
     // structureatoms : pointer array storing info on unit cell of crystal structure
