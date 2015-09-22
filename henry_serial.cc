@@ -172,7 +172,7 @@ int main() {
     //  KH = < e^{-E/(kB * T)} > / (R * T)
     //  Brackets denote average over space
     //
-    int ninsertions = 16384000;
+    int ninsertions = 100000 * 256 ;
     double KH = 0.0;  // will be Henry coefficient
     #pragma omp parallel for
     for (int i = 0; i < ninsertions; i++) {

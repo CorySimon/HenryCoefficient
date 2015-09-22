@@ -19,7 +19,7 @@
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
 
-#define NUMBLOCKS 64
+#define NUMBLOCKS 3
 #define NUMTHREADS 256
 
 // data for atom of crystal structure
@@ -43,7 +43,7 @@ const double T = 298.0;
 const double R = 8.314; 
 
 // Number of times to call GPU kernel
-int ninsertions = 1000 * 256 * 64;
+int ninsertions = 100000 * 256 ;
 int ncycles = floor(ninsertions / (NUMTHREADS * NUMBLOCKS));
 
 // Compute the Boltzmann factor of methane at point (x, y, z) inside structure
