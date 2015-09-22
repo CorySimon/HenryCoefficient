@@ -99,7 +99,7 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
 // Calls function to compute Boltzmann factor at this point
 // Stores Boltzmann factor computed at this thread in deviceBoltzmannFactors
 __global__ void PerformInsertions(curandStateMtgp32 *state, 
-                                  double * __restrict__ deviceBoltzmannFactors, 
+                                  double * deviceBoltzmannFactors, 
                                   const StructureAtom * __restrict__ structureatoms, 
                                   int natoms, double L) {
     // state : random number generator

@@ -1,8 +1,8 @@
 CC = nvcc
 MPCC = nvcc
 OPENMP = 
-CFLAGS = -O3 -arch sm_20 g
-NVCCFLAGS = -g -O3 -arch sm_20
+CFLAGS = -O3
+NVCCFLAGS = -O3 -arch sm_35
 LIBS = -lm
 
 all: henry henry_serial
