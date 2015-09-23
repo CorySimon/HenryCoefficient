@@ -6,7 +6,10 @@
 #include <thrust/host_vector.h>
 
 #include <iostream>
+#include <map>
 #include <iomanip>
+#include <fstream>
+#include <sstream>
 #include <cmath>
 
 // for generating RNG seeds
@@ -46,17 +49,15 @@ const double R = 8.314;
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
 __host__ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
-                                                const StructureAtom * __restrict__ structureatoms,
-                                                double natoms,
+                                                thrust::device_vector<StructureAtom> structureatoms,
                                                 double L) {
     // (x, y, z) : Cartesian coords of methane molecule
-    // structureatoms : pointer array storing info on unit cell of crystal structure
-    // natoms : number of atoms in crystal structure
+    // structureatoms : vector storing info on unit cell of crystal structure
     // L : box length
     double E = 0.0;
     
     // loop over atoms in crystal structure
-    for (int i = 0; i < natoms; i++) {
+    for (int i = 0; i < structureatoms.size(); i++) {
         //  Compute distance from (x, y, z) to this atom
 
         // compute distances in each coordinate
@@ -89,31 +90,30 @@ __host__ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, dou
 }
 
 struct estimate_avg_Boltzmann_factor : public thrust::unary_function<unsigned int,double> {
-  __host__ __device__
-  double operator()(unsigned int thread_id) {
-    double sum = 0.0;
-    unsigned int N = 10000; // samples per thread
+    __host__ __device__
+    double operator(thrust::device_vector<StructureAtom> deviceStructureatoms, double L)(unsigned int thread_id) {
+        double sum = 0.0;
+        unsigned int N = 10000; // samples per thread
 
-    // seed a random number generator for uniform double in [0,1)
-    unsigned int seed = hash(thread_id);
-    thrust::default_random_engine rng(seed);
-    thrust::uniform_real_distribution<double> u01(0.0, 1.0);
+        // seed a random number generator for uniform double in [0,1)
+        unsigned int seed = hash(thread_id);
+        thrust::default_random_engine rng(seed);
+        thrust::uniform_real_distribution<double> u01(0.0, 1.0);
 
-    // take N samples in a quarter circle
-    for(unsigned int i = 0; i < N; ++i)
-    {
-      // Generate random position inside the cubic unit cell of the structure
-      double x = L * u01(rng);
-      double y = L * u01(rng);
-      double z = L * u01(rng);
+        // perform N insertions
+        for(unsigned int i = 0; i < N; ++i) {
+            // Generate random position inside the cubic unit cell of the structure
+            double x = L * u01(rng);
+            double y = L * u01(rng);
+            double z = L * u01(rng);
      
-      // Compute Boltzmann factor
-      sum += ComputeBoltzmannFactorAtPoint(x, y, z, structureatoms, natoms, L);
-    }
+            // Compute Boltzmann factor
+            sum += ComputeBoltzmannFactorAtPoint(x, y, z, deviceStructureatoms, L);
+        }
 
-    // divide by N for average
-    return sum / N;
-  }
+        // divide by N for average
+        return sum / N;
+    }
 };
 
 int main(void)
@@ -139,7 +139,7 @@ int main(void)
     //
     // Import unit cell of nanoporous material IRMOF-1
     //
-    StructureAtom *structureatoms;  // store data in pointer array here
+    thrust::host_vector<StructureAtom> hostStructureatoms;
     // open crystal structure file
     std::ifstream materialfile("IRMOF-1.cssr");
     if (materialfile.fail()) {
@@ -170,10 +170,6 @@ int main(void)
     // waste line
     getline(materialfile, line);
 
-    // Allocate space for material atoms and epsilons/sigmas on both host and device
-    //   using unified memory
-    CUDA_CALL(cudaMallocManaged(&structureatoms, natoms * sizeof(StructureAtom)));
-
     // read atom coordinates
     for (int i = 0; i < natoms; i++) {
         getline(materialfile, line);
@@ -185,13 +181,17 @@ int main(void)
         std::string element;
 
         istream >> atomno >> element >> xf >> yf >> zf;
-        // load structureatoms
-        structureatoms[i].x = L * xf;
-        structureatoms[i].y = L * yf;
-        structureatoms[i].z = L * zf;
+        
+        StructureAtom thisatom;
 
-        structureatoms[i].epsilon = epsilons[element];
-        structureatoms[i].sigma = sigmas[element];
+        thisatom.x = L * xf;
+        thisatom.y = L * yf;
+        thisatom.z = L * zf;
+
+        thisatom.epsilon = epsilons[element];
+        thisatom.sigma = sigmas[element];
+
+        hostStructureatoms.push_back(thisatom);
 
 //        printf("%d. %s, (%f, %f, %f), eps = %f, sig = %f\n", 
 //            atomno, element.c_str(), 
@@ -199,17 +199,20 @@ int main(void)
 //            structureatoms[i].epsilon,
 //            structureatoms[i].sigma);
     }
+    
+    // copy structure atoms to device
+    thrust::device_vector<StructureAtom> deviceStructureatoms = hostStructureatoms;
 
-  // use 30K independent seeds
-  int M = 30000;
+    // use 30K independent seeds
+    int M = 30000;
 
-  double avg_Boltzmann_factor = thrust::transform_reduce(thrust::counting_iterator<int>(0),
+    double avg_Boltzmann_factor = thrust::transform_reduce(thrust::counting_iterator<int>(0),
                                             thrust::counting_iterator<int>(M),
-                                            estimate_avg_Boltzmann_factor(),
+                                            estimate_avg_Boltzmann_factor(thrust::device_vector<StructureAtom> deviceStructureatoms, double L),
                                             0.0f,
                                             thrust::plus<double>());
-  avg_Boltzmann_factor /= M;
+    avg_Boltzmann_factor /= M;
     printf("Henry constant = %e mol/(m3 - Pa)\n", avg_Boltzmann_factor / (R * T));
 
-  return 0;
+    return 0;
 }
