@@ -49,7 +49,8 @@ const double R = 8.314;
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
 __host__ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
-                                                thrust::device_vector<StructureAtom> structureatoms,
+                                                StructureAtom * structureatoms,
+                                                int natoms,
                                                 double L) {
     // (x, y, z) : Cartesian coords of methane molecule
     // structureatoms : vector storing info on unit cell of crystal structure
@@ -57,7 +58,7 @@ __host__ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, dou
     double E = 0.0;
     
     // loop over atoms in crystal structure
-    for (int i = 0; i < structureatoms.size(); i++) {
+    for (int i = 0; i < natoms; i++) {
         //  Compute distance from (x, y, z) to this atom
 
         // compute distances in each coordinate
@@ -90,11 +91,12 @@ __host__ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, dou
 }
 
 struct estimate_avg_Boltzmann_factor : public thrust::unary_function<unsigned int,double> {
-    estimate_avg_Boltzmann_factor(thrust::device_vector<StructureAtom> deviceStructureatoms_, double L_) 
-        : L(L_), deviceStructureatoms(deviceStructureatoms_)
+    estimate_avg_Boltzmann_factor(StructureAtom * structureatoms_, int natoms_, double L_) 
+        : L(L_), natoms(natoms_), structureatoms(structureatoms_)
         {}
+    StructureAtom * structureatoms;
+    int natoms;
     double L;
-    thrust::device_vector<StructureAtom> deviceStructureatoms;
         
     __host__ __device__
     double operator()(unsigned int thread_id) {
@@ -114,7 +116,7 @@ struct estimate_avg_Boltzmann_factor : public thrust::unary_function<unsigned in
             double z = L * u01(rng);
      
             // Compute Boltzmann factor
-            sum += ComputeBoltzmannFactorAtPoint(x, y, z, deviceStructureatoms, L);
+            sum += ComputeBoltzmannFactorAtPoint(x, y, z, structureatoms, natoms, L);
         }
 
         // divide by N for average
@@ -208,13 +210,15 @@ int main(void)
     
     // copy structure atoms to device
     thrust::device_vector<StructureAtom> deviceStructureatoms = hostStructureatoms;
+    // get raw pointer of deviceStructureatoms
+    StructureAtom * structureatoms = thrust::raw_pointer_cast(deviceStructureatoms.data());
 
     // use 30K independent seeds
     int M = 30000;
 
     double avg_Boltzmann_factor = thrust::transform_reduce(thrust::counting_iterator<int>(0),
                                             thrust::counting_iterator<int>(M),
-                                            estimate_avg_Boltzmann_factor(deviceStructureatoms, L),
+                                            estimate_avg_Boltzmann_factor(structureatoms, natoms, L),
                                             0.0f,
                                             thrust::plus<double>());
     avg_Boltzmann_factor /= M;
