@@ -90,8 +90,14 @@ __host__ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, dou
 }
 
 struct estimate_avg_Boltzmann_factor : public thrust::unary_function<unsigned int,double> {
+    estimate_avg_Boltzmann_factor(thrust::device_vector<StructureAtom> deviceStructureatoms_, double L_) 
+        : L(L_), deviceStructureatoms(deviceStructureatoms_)
+        {}
+    double L;
+    thrust::device_vector<StructureAtom> deviceStructureatoms;
+        
     __host__ __device__
-    double operator(thrust::device_vector<StructureAtom> deviceStructureatoms, double L)(unsigned int thread_id) {
+    double operator()(unsigned int thread_id) {
         double sum = 0.0;
         unsigned int N = 10000; // samples per thread
 
@@ -208,7 +214,7 @@ int main(void)
 
     double avg_Boltzmann_factor = thrust::transform_reduce(thrust::counting_iterator<int>(0),
                                             thrust::counting_iterator<int>(M),
-                                            estimate_avg_Boltzmann_factor(thrust::device_vector<StructureAtom> deviceStructureatoms, double L),
+                                            estimate_avg_Boltzmann_factor(deviceStructureatoms, L),
                                             0.0f,
                                             thrust::plus<double>());
     avg_Boltzmann_factor /= M;
