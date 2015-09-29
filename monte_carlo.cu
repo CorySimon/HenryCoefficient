@@ -91,13 +91,14 @@ __host__ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, dou
 }
 
 struct estimate_avg_Boltzmann_factor : public thrust::unary_function<unsigned int,double> {
-    StructureAtom * structureatoms;
-    int natoms;
-    double L;
+    StructureAtom * structureatoms;  // Pointer to IRMOF-1 structure atoms
+    int natoms;  // number of atoms in IRMOF-1
+    double L;  // length of cubic IRMOF-1 unit cell
         
     estimate_avg_Boltzmann_factor(StructureAtom * structureatoms_, int natoms_, double L_) 
         : L(L_), natoms(natoms_), structureatoms(structureatoms_)
         {}
+
     __host__ __device__
     double operator()(unsigned int thread_id) {
         double sum = 0.0;
