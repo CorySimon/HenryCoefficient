@@ -12,14 +12,14 @@
 #include <curand_mtgp32dc_p_11213.h>
 
 #define CUDA_CALL(x) do { if((x) != cudaSuccess) { \
-    printf("Error at %s:%d\n",__FILE__,__LINE__); \
+    printf("Error %s at %s:%d\n",cudaGetErrorString(x), __FILE__, __LINE__); \
     return EXIT_FAILURE;}} while(0)
 
 #define CURAND_CALL(x) do { if((x) != CURAND_STATUS_SUCCESS) { \
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
 
-#define NUMBLOCKS 3
+#define NUMBLOCKS 64
 #define NUMTHREADS 256
 
 // data for atom of crystal structure
@@ -42,8 +42,9 @@ const double T = 298.0;
 // Universal gas constant, m3 - Pa / (K - mol)
 const double R = 8.314; 
 
+// Number of Monte Carlo insertions
+int ninsertions = 100000 * 256;
 // Number of times to call GPU kernel
-int ninsertions = 100000 * 256 ;
 int ncycles = floor(ninsertions / (NUMTHREADS * NUMBLOCKS));
 
 // Compute the Boltzmann factor of methane at point (x, y, z) inside structure
@@ -58,13 +59,12 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
     // structureatoms : pointer array storing info on unit cell of crystal structure
     // natoms : number of atoms in crystal structure
     // L : box length
-    double E = 0.0;
+    // returns Boltzmann factor e^{-E/(RT)}
+    double E = 0.0;  // energy (K)
     
     // loop over atoms in crystal structure
     for (int i = 0; i < natoms; i++) {
-        //  Compute distance from (x, y, z) to this atom
-
-        // compute distances in each coordinate
+        // Compute distance in each coordinate from (x, y, z) to this structure atom
         double dx = x - structureatoms[i].x;
         double dy = y - structureatoms[i].y;
         double dz = z - structureatoms[i].z;
@@ -83,7 +83,7 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
         if (dy <= -L / 2.0)
             dy = dy + L;
 
-        // distance
+        // compute inverse distance
         double rinv = rsqrt(dx*dx + dy*dy + dz*dz);
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
@@ -95,14 +95,14 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
 
 // Inserts a methane molecule at a random position inside the structure
 // Calls function to compute Boltzmann factor at this point
-// Stores Boltzmann factor computed at this thread in deviceBoltzmannFactors
+// Stores Boltzmann factor computed at this thread in boltzmannFactors
 __global__ void PerformInsertions(curandStateMtgp32 *state, 
-                                  double * boltzmannFactors, 
+                                  double *boltzmannFactors, 
                                   const StructureAtom * __restrict__ structureatoms, 
                                   int natoms, double L) {
     // state : random number generator
     // boltzmannFactors : pointer array in which to store computed Boltzmann factors
-    // structureatoms : pointer array storing info on unit cell of crystal structure
+    // structureatoms : pointer array storing atoms in unit cell of crystal structure
     // natoms : number of atoms in crystal structure
     // L : box length
     int id = threadIdx.x + blockIdx.x * NUMTHREADS;  // thread ID
@@ -138,7 +138,7 @@ int main() {
     //
     // Import unit cell of nanoporous material IRMOF-1
     //
-    StructureAtom *structureatoms;  // store data in pointer array here
+    StructureAtom *structureatoms;  // store atoms in pointer array here
     // open crystal structure file
     std::ifstream materialfile("IRMOF-1.cssr");
     if (materialfile.fail()) {
@@ -151,8 +151,8 @@ int main() {
     getline(materialfile, line);
     std::istringstream istream(line);
 
-    double L;
-    istream >> L;   
+    double L;  // dimension of cube
+    istream >> L;
     printf("L = %f\n", L);
 
     // waste line
@@ -160,7 +160,7 @@ int main() {
     
     // get number of atoms
     getline(materialfile, line);
-    int natoms;  // number of atoms
+    int natoms;  // number of atoms in unit cell of IRMOF-1
     istream.str(line);
     istream.clear();
     istream >> natoms;
@@ -170,25 +170,28 @@ int main() {
     getline(materialfile, line);
 
     // Allocate space for material atoms and epsilons/sigmas on both host and device
-    //   using unified memory
+    //   using Unified Memory
     CUDA_CALL(cudaMallocManaged(&structureatoms, natoms * sizeof(StructureAtom)));
 
     // read atom coordinates
     for (int i = 0; i < natoms; i++) {
+        // read atoms from .cssr file
         getline(materialfile, line);
         istream.str(line);
         istream.clear();
 
         int atomno;
-        double xf, yf, zf;  // fractional coordintes
+        double xf, yf, zf;  // fractional coordinates
         std::string element;
 
         istream >> atomno >> element >> xf >> yf >> zf;
-        // load structureatoms
+
+        // load structureatoms with Cartesian coordinates of this atom
         structureatoms[i].x = L * xf;
         structureatoms[i].y = L * yf;
         structureatoms[i].z = L * zf;
-
+        
+        // store epsilon and sigma Lennard-Jones parameters as well, for ease of computation on device
         structureatoms[i].epsilon = epsilons[element];
         structureatoms[i].sigma = sigmas[element];
 
@@ -200,10 +203,10 @@ int main() {
     }
     
     //
-    // Allocate space for storing Botlzmann factors computed on each thread using unified memory
+    // Allocate space for storing Boltzmann factors computed on each thread using unified memory
     //
     double * boltzmannFactors;
-    CUDA_CALL(cudaMallocManaged(&boltzmannFactors, NUMBLOCKS * NUMTHREADS, sizeof(double)));
+    CUDA_CALL(cudaMallocManaged(&boltzmannFactors, NUMBLOCKS * NUMTHREADS * sizeof(double)));
     
     //
     // Set up random number generator on device
@@ -227,25 +230,24 @@ int main() {
     // State setup is complete
     
     //
-    //  Compute the Henry coefficient in parallel
+    //  Compute the Henry coefficient
     //  KH = < e^{-E/(kB * T)} > / (R * T)
     //  Brackets denote average over space
     //
     double KH = 0.0;  // will be Henry coefficient
     for (int cycle = 0; cycle < ncycles; cycle++) {
-        //  Perform Monte Carlo insertions in parallel on the GPU.
+        //  Perform Monte Carlo insertions in parallel on the GPU
         PerformInsertions<<<NUMBLOCKS, NUMTHREADS>>>(devMTGPStates, boltzmannFactors, structureatoms, natoms, L);
         cudaDeviceSynchronize();
 
-        // Compute Henry coefficient from the sampled Boltzmann factors
+        // Compute Henry coefficient from the sampled Boltzmann factors (will be average Boltzmann factor divided by RT)
         for(int i = 0; i < NUMBLOCKS * NUMTHREADS; i++) {
             KH += boltzmannFactors[i];
         }
     }
-    // take averageBoltzmann constant
-    KH = KH / (NUMBLOCKS * NUMTHREADS * ncycles);
+    KH = KH / (NUMBLOCKS * NUMTHREADS * ncycles);  // --> average Boltzmann factor
     // at this point KH = < e^{-E/(kB/T)} >
-    KH = KH / (R * T);
+    KH = KH / (R * T);  // divide by RT
     printf("Henry constant = %e mol/(m3 - Pa)\n", KH);
     printf("Number of actual insertions: %d\n", NUMBLOCKS * NUMTHREADS * ncycles);
     printf("Number of times we called the GPU kernel: %d\n", ncycles);
