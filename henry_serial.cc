@@ -22,10 +22,10 @@ struct StructureAtom {
 };
 
 // temperature, Kelvin
-double T = 298.0;
+const double T = 298.0;
 
 // Universal gas constant, m3 - Pa / (K - mol)
-double R = 8.314;
+const double R = 8.314;
 
 // Compute the Boltzmann factor of methane at point (x, y, z) inside structure
 //   Loop over all atoms of unit cell of crystal structure

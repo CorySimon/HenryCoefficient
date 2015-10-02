@@ -241,9 +241,8 @@ int main() {
         cudaDeviceSynchronize();
 
         // Compute Henry coefficient from the sampled Boltzmann factors (will be average Boltzmann factor divided by RT)
-        for(int i = 0; i < NUMBLOCKS * NUMTHREADS; i++) {
+        for(int i = 0; i < NUMBLOCKS * NUMTHREADS; i++)
             KH += boltzmannFactors[i];
-        }
     }
     KH = KH / (NUMBLOCKS * NUMTHREADS * ncycles);  // --> average Boltzmann factor
     // at this point KH = < e^{-E/(kB/T)} >
