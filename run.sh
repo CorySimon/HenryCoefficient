@@ -6,7 +6,7 @@
 echo "NUMBLOCKS,time" > GPU_performance.csv
 
 # Run GPU code with varying numbers of blocks
-for b in 1 2 4 5 8 10 16 20 25 32 40 50 64
+for b in 1 2 4 5 8 10 16 # 20 25 32 40 50 64
 do
     # compile with this many blocks
     grep -rl "#define NUMBLOCKS" henry.cu | xargs sed -i "s/#define NUMBLOCKS.*$/#define NUMBLOCKS $b/g" henry.cu
