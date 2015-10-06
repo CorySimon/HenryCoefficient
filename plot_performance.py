@@ -14,16 +14,19 @@ def get_seconds(time_string):
     seconds = float(time_string.split("m")[1].split("s")[0])
     return minutes * 60.0 + seconds
 
+ninsertions = 100000.0 * 256.0
+
 # GPU
 df = pd.read_csv("GPU_performance.csv")
 df['sec'] = df['time'].map(get_seconds)
 
 fig = plt.figure()
 plt.xlabel("Number of blocks")
-plt.ylabel("Time (sec)")
-plt.plot(df["NUMBLOCKS"], df["sec"], marker='s', color='g', markersize=10, clip_on=False)
+plt.ylabel("Insertions per run time (1000/sec)")
+plt.plot(df["NUMBLOCKS"], ninsertions / df["sec"] / 1000.0, marker='s', color='g', markersize=10, clip_on=False)
 plt.xlim(xmin=0)
 plt.ylim(ymin=0)
+plt.tight_layout()
 plt.savefig('GPU_performance.png', format='png', dpi=300)
 plt.show()
 
@@ -33,9 +36,10 @@ df['sec'] = df['time'].map(get_seconds)
 
 fig = plt.figure()
 plt.xlabel("OMP_NUM_THREADS")
-plt.ylabel("Time (sec)")
-plt.plot(df["OMP_NUM_THREADS"], df["sec"], marker='s', color='b', markersize=10, clip_on=False)
+plt.ylabel("Insertions per run time (1000/sec)")
+plt.plot(df["OMP_NUM_THREADS"], ninsertions / df["sec"] / 1000.0, marker='s', color='b', markersize=10, clip_on=False)
 plt.xlim(xmin=0)
 plt.ylim(ymin=0)
+plt.tight_layout()
 plt.savefig('OMP_performance.png', format='png', dpi=300)
 plt.show()
