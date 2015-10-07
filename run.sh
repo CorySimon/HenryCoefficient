@@ -3,23 +3,23 @@
 ###
 ### CUDA code performance
 ###
-echo "NUMBLOCKS,time" > GPU_performance.csv
+echo "NUMTHREADS,time" > GPU_performance.csv
 
-# Run GPU code with varying numbers of blocks
-for b in 1 2 4 5 8 10 16 # 20 25 32 40 50 64
+# Run GPU code with varying numbers of threads per block
+for nt in 32 64 96 128 160 192 224 256
 do
     # compile with this many blocks
-    grep -rl "#define NUMBLOCKS" henry.cu | xargs sed -i "s/#define NUMBLOCKS.*$/#define NUMBLOCKS $b/g" henry.cu
+    grep -rl "#define NUMTHREADS" henry.cu | xargs sed -i "s/#define NUMTHREADS.*$/#define NUMTHREADS $nt/g" henry.cu
     make
 
-    echo "Running with $b blocks"
+    echo "Running with $nt threads/block"
 
     # run and time
     t=$({ time ./henry >/dev/null; } |& grep real | awk '{print $2}')
     echo -e "\tRun time: $t"
 
     # write results to .csv
-    echo "$b,$t" >> GPU_performance.csv
+    echo "$nt,$t" >> GPU_performance.csv
 
 done
 
