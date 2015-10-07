@@ -8,7 +8,7 @@ echo "NUMTHREADS,time" > GPU_performance.csv
 # Run GPU code with varying numbers of threads per block
 for nt in 32 64 96 128 160 192 224 256
 do
-    # compile with this many blocks
+    # compile with this many threads per block
     grep -rl "#define NUMTHREADS" henry.cu | xargs sed -i "s/#define NUMTHREADS.*$/#define NUMTHREADS $nt/g" henry.cu
     make
 
