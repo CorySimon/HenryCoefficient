@@ -1,39 +1,33 @@
 #!/bin/bash
 
 ###
-### CUDA code performance
+### Benchmark CUDA and OpenMP code performance
 ###
-echo "NUMTHREADS,time" > GPU_performance.csv
+ # echo "GPUkernelcalls,time" > GPU_performance.csv
+echo "EquivalentGPUkernelcalls,time" > OpenMP_performance.csv
+    
+export OMP_NUM_THREADS=24
+echo "Running with $OMP_NUM_THREADS OpenMP threads"
 
-# Run GPU code with varying numbers of threads per block
-for nt in 32 64 96 128 160 192 224 256
+# Run codes with varying numbers of Monte Carlo insertions, $n
+for n in `seq 1 10 500`
 do
-    # compile with this many threads per block
-    grep -rl "#define NUMTHREADS" henry.cu | xargs sed -i "s/#define NUMTHREADS.*$/#define NUMTHREADS $nt/g" henry.cu
-    make
+    echo "Running with $n GPU kernel calls"
+    
+    ###
+    # GPU code
+    ###
+ #     t=$({ time ./henry $n >/dev/null; } |& grep real | awk '{print $2}')
+ #     echo -e "\tCUDA run time: $t"
+ #     echo "$n,$t" >> GPU_performance.csv  # write results to .csv
+    
+    ###
+    # OpenMP code
+    ###
+    t=$({ time ./henry_serial $n >/dev/null; } |& grep real | awk '{print $2}')
+    echo -e "\tOpenMP run time: $t"
+    echo "$n,$t" >> OpenMP_performance.csv  # write results to .csv
 
-    echo "Running with $nt threads/block"
-
-    # run and time
-    t=$({ time ./henry >/dev/null; } |& grep real | awk '{print $2}')
-    echo -e "\tRun time: $t"
-
-    # write results to .csv
-    echo "$nt,$t" >> GPU_performance.csv
-
-done
-
-###
-### OpenMP code performance
-###
-echo "OMP_NUM_THREADS,time" > OpenMP_performance.csv
-for c in `seq 1 8`
-do
-    export OMP_NUM_THREADS=$c
-    echo "Running with $OMP_NUM_THREADS OpenMP threads"
-    time ./henry_serial
-    t=$({ time ./henry_serial >/dev/null; } |& grep real | awk '{print $2}')
-    echo "$c,$t" >> OpenMP_performance.csv
 done
 
 python plot_performance.py

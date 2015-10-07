@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string>
 #include <fstream>
+#include <cstdlib>
 #include <sstream>
 #include <map>
 #include<random>
@@ -77,7 +78,14 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
 // Inserts a methane molecule at a random position inside the structure
 // Calls function to compute Boltzmann factor at this point
 // Stores Boltzmann factor computed at this thread in deviceBoltzmannFactors
-int main() {
+int main(int argc, char *argv[]) {
+    // take in number of MC insertions as argument
+    if (argc != 2) {
+        printf("Run as:\n./henry ninsertions\nwhere ninsertions = Number of MC insertions / (256 * 64) to correspond to CUDA code");
+        exit(EXIT_FAILURE);
+    }
+    int ninsertions = atoi(argv[1]) * 256 * 64;  // Number of Monte Carlo insertions
+
     //
     // Energetic model for interactions of methane molecule with atoms of framework
     //    pairwise Lennard-Jones potentials
@@ -172,7 +180,6 @@ int main() {
     //  KH = < e^{-E/(kB * T)} > / (R * T)
     //  Brackets denote average over space
     //
-    int ninsertions = 100000 * 32 * 24;
     double KH = 0.0;  // will be Henry coefficient
     #pragma omp parallel for
     for (int i = 0; i < ninsertions; i++) {

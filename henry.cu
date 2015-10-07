@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <cuda.h>
 #include <string>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <map>
@@ -19,7 +20,7 @@
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
 
-#define NUMBLOCKS 24
+#define NUMBLOCKS 64
 #define NUMTHREADS 256
 
 // data for atom of crystal structure
@@ -41,11 +42,6 @@ const double T = 298.0;
 
 // Universal gas constant, m3 - Pa / (K - mol)
 const double R = 8.314; 
-
-// Number of Monte Carlo insertions
-int ninsertions = 100000 * 32 * 24;
-// Number of times to call GPU kernel
-int ncycles = floor(ninsertions / (NUMTHREADS * NUMBLOCKS));
 
 // Compute the Boltzmann factor of methane at point (x, y, z) inside structure
 //   Loop over all atoms of unit cell of crystal structure
@@ -116,7 +112,14 @@ __global__ void PerformInsertions(curandStateMtgp32 *state,
     boltzmannFactors[id] = ComputeBoltzmannFactorAtPoint(x, y, z, structureatoms, natoms, L);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    // take in number of MC insertions as argument
+    if (argc != 2) {
+        printf("Run as:\n./henry ninsertions\n");
+        exit(EXIT_FAILURE);
+    }
+    int ncycles = atoi(argv[1]);  // Number of Monte Carlo insertions
+
     //
     // Energetic model for interactions of methane molecule with atoms of framework
     //    pairwise Lennard-Jones potentials

@@ -14,32 +14,33 @@ def get_seconds(time_string):
     seconds = float(time_string.split("m")[1].split("s")[0])
     return minutes * 60.0 + seconds
 
-ninsertions = 100000.0 * 256.0
-
 # GPU
-df = pd.read_csv("GPU_performance.csv")
-df['sec'] = df['time'].map(get_seconds)
-
-fig = plt.figure()
-plt.xlabel("Number of threads per block (24 blocks)")
-plt.ylabel("Insertions per run time (1000/sec)")
-plt.plot(df["NUMTHREADS"], ninsertions / df["sec"] / 1000.0, marker='s', color='g', markersize=10, clip_on=False)
-plt.xlim(xmin=0)
-plt.ylim(ymin=0)
-plt.tight_layout()
-plt.savefig('GPU_performance.png', format='png', dpi=300)
-plt.show()
+df_CUDA = pd.read_csv("GPU_performance.csv")
+df_CUDA['sec'] = df_CUDA['time'].map(get_seconds)
+df_CUDA['ninsertions'] = df_CUDA['GPUkernelcalls'] * 256 * 64
 
 # OpenMP
-df = pd.read_csv("OpenMP_performance.csv")
-df['sec'] = df['time'].map(get_seconds)
+df_OpenMP = pd.read_csv("OpenMP_performance.csv")
+df_OpenMP['sec'] = df_OpenMP['time'].map(get_seconds)
+df_OpenMP['ninsertions'] = df_OpenMP['EquivalentGPUkernelcalls'] * 256 * 64
 
+# Plot
 fig = plt.figure()
-plt.xlabel("OMP_NUM_THREADS")
+
+plt.xlabel("Monte Carlo insertions (thousands)")
 plt.ylabel("Insertions per run time (1000/sec)")
-plt.plot(df["OMP_NUM_THREADS"], ninsertions / df["sec"] / 1000.0, marker='s', color='b', markersize=10, clip_on=False)
-plt.xlim(xmin=0)
+
+plt.plot(df_OpenMP["ninsertions"] / 1000.0, df_OpenMP["ninsertions"] / df_OpenMP["sec"] / 1000.0, marker='s', 
+        color='b', markersize=10, clip_on=False, label='OpenMP (24 OpenMP threads)')
+plt.plot(df_CUDA["ninsertions"] / 1000.0, df_CUDA["ninsertions"] / df_CUDA["sec"] / 1000.0, marker='o', 
+        color='g', markersize=10, clip_on=False, label='CUDA (64 blocks, 256 threads)')
+
+plt.xlim([0, 8000])
 plt.ylim(ymin=0)
+
+plt.legend(loc='center')
+
 plt.tight_layout()
-plt.savefig('OMP_performance.png', format='png', dpi=300)
+plt.savefig('Performance.png', format='png', dpi=300)
+
 plt.show()
