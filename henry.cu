@@ -19,7 +19,7 @@
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
 
-#define NUMBLOCKS 64
+#define NUMBLOCKS 24
 #define NUMTHREADS 256
 
 // data for atom of crystal structure
@@ -43,7 +43,7 @@ const double T = 298.0;
 const double R = 8.314; 
 
 // Number of Monte Carlo insertions
-int ninsertions = 100000 * 256;
+int ninsertions = 100000 * 32 * 24;
 // Number of times to call GPU kernel
 int ncycles = floor(ninsertions / (NUMTHREADS * NUMBLOCKS));
 

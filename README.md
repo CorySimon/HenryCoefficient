@@ -14,4 +14,4 @@ that parallelizes the loop.
 
 :honeybee: To compile both codes, type `make` (See `Makefile`).
 
-:honeybee: The Bash shell file `run.sh` runs the performance benchmark tests of the CUDA and OpenMP-parallelized codes by varying the number of parallel elements (GPU blocks with 256 threads each / OpenMP threads) and stores the run times in .csv files. It also calls the Python script `plot_performance.py` to plot the results.
+:honeybee: The Bash shell file `run.sh` runs the performance benchmark tests of the CUDA and OpenMP-parallelized codes by varying the number of parallel elements (GPU threads per block / OpenMP threads) and stores the run times in .csv files. It also calls the Python script `plot_performance.py` to plot the results.
