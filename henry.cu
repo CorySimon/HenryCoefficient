@@ -20,8 +20,7 @@
     printf("Error at %s:%d\n",__FILE__,__LINE__); \
     return EXIT_FAILURE;}} while(0)
 
-#define NUMBLOCKS 64
-#define NUMTHREADS 256
+#define NUMTHREADS 256  // number of threads per GPU block
 
 // data for atom of crystal structure
 //    Unit cell of crystal structure can then be stored 
@@ -101,8 +100,8 @@ __global__ void PerformInsertions(curandStateMtgp32 *state,
     // structureatoms : pointer array storing atoms in unit cell of crystal structure
     // natoms : number of atoms in crystal structure
     // L : box length
-    int id = threadIdx.x + blockIdx.x * NUMTHREADS;  // thread ID
-    
+    int id = threadIdx.x + blockIdx.x * NUMTHREADS;
+        
     // Generate random position inside the cubic unit cell of the structure
     double x = L * curand_uniform_double(&state[blockIdx.x]);
     double y = L * curand_uniform_double(&state[blockIdx.x]);
@@ -205,11 +204,21 @@ int main(int argc, char *argv[]) {
 //            structureatoms[i].sigma);
     }
     
+    // Determine number of blocks for high occupancy: 4 per multiprocessor
+    int deviceId = -1;
+    int nMultiprocessors = 0;
+    CUDA_CALL(cudaGetDevice(&deviceId));
+    CUDA_CALL(cudaDeviceGetAttribute(&nMultiprocessors, cudaDevAttrMultiProcessorCount, deviceId));
+    int nBlocks = nMultiprocessors * 4;   
+    
+    // calculate number of MC insertions
+    int ninsertions = ncycles * nBlocks * NUMTHREADS;
+    
     //
     // Allocate space for storing Boltzmann factors computed on each thread using unified memory
     //
     double * boltzmannFactors;
-    CUDA_CALL(cudaMallocManaged(&boltzmannFactors, NUMBLOCKS * NUMTHREADS * sizeof(double)));
+    CUDA_CALL(cudaMallocManaged(&boltzmannFactors, nBlocks * NUMTHREADS * sizeof(double)));
     
     //
     // Set up random number generator on device
@@ -218,7 +227,7 @@ int main(int argc, char *argv[]) {
     mtgp32_kernel_params *devKernelParams;
 
     // Allocate space for prng states on device. One per block
-    CUDA_CALL(cudaMalloc((void **) &devMTGPStates, NUMBLOCKS * sizeof(curandStateMtgp32))); 
+    CUDA_CALL(cudaMalloc((void **) &devMTGPStates, nBlocks * sizeof(curandStateMtgp32))); 
     
     // Setup MTGP prng states
     // Allocate space for MTGP kernel parameters
@@ -229,7 +238,7 @@ int main(int argc, char *argv[]) {
     CURAND_CALL(curandMakeMTGP32Constants(mtgp32dc_params_fast_11213, devKernelParams)); 
     
     // Initialize one state per thread block
-    CURAND_CALL(curandMakeMTGP32KernelState(devMTGPStates, mtgp32dc_params_fast_11213, devKernelParams, NUMBLOCKS, 1234)); 
+    CURAND_CALL(curandMakeMTGP32KernelState(devMTGPStates, mtgp32dc_params_fast_11213, devKernelParams, nBlocks, 1234)); 
     // State setup is complete
     
     //
@@ -237,21 +246,23 @@ int main(int argc, char *argv[]) {
     //  KH = < e^{-E/(kB * T)} > / (R * T)
     //  Brackets denote average over space
     //
+
     double KH = 0.0;  // will be Henry coefficient
     for (int cycle = 0; cycle < ncycles; cycle++) {
         //  Perform Monte Carlo insertions in parallel on the GPU
-        PerformInsertions<<<NUMBLOCKS, NUMTHREADS>>>(devMTGPStates, boltzmannFactors, structureatoms, natoms, L);
+        PerformInsertions<<<nBlocks, NUMTHREADS>>>(devMTGPStates, boltzmannFactors, structureatoms, natoms, L);
         cudaDeviceSynchronize();
 
         // Compute Henry coefficient from the sampled Boltzmann factors (will be average Boltzmann factor divided by RT)
-        for(int i = 0; i < NUMBLOCKS * NUMTHREADS; i++)
+        for(int i = 0; i < nBlocks * NUMTHREADS; i++)
             KH += boltzmannFactors[i];
     }
-    KH = KH / (NUMBLOCKS * NUMTHREADS * ncycles);  // --> average Boltzmann factor
+    KH = KH / ninsertions;  // --> average Boltzmann factor
     // at this point KH = < e^{-E/(kB/T)} >
     KH = KH / (R * T);  // divide by RT
+    printf("Used %d blocks with %d thread each\n", nBlocks, NUMTHREADS);
     printf("Henry constant = %e mol/(m3 - Pa)\n", KH);
-    printf("Number of actual insertions: %d\n", NUMBLOCKS * NUMTHREADS * ncycles);
+    printf("Number of actual insertions: %d\n", ninsertions);
     printf("Number of times we called the GPU kernel: %d\n", ncycles);
     
     // Clean-up
