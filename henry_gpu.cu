@@ -75,8 +75,8 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
             dx = dx + L;
         if (dy <= -L / 2.0)
             dy = dy + L;
-        if (dy <= -L / 2.0)
-            dy = dy + L;
+        if (dz <= -L / 2.0)
+            dz = dz + L;
 
         // compute inverse distance
         double rinv = rsqrt(dx*dx + dy*dy + dz*dz);
