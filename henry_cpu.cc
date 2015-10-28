@@ -34,9 +34,9 @@ const double R = 8.314;
 //   Loop over all atoms of unit cell of crystal structure
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
-double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
-                                     const StructureAtom * restrict structureatoms,
-                                     int natoms, double L)
+double ComputeBoltzmannFactorAtPoint(const double x, const double y, const double z,
+                                     const StructureAtom * restrict const structureatoms,
+                                     const int natoms, const double L)
 {
     // (x, y, z) : Cartesian coords of methane molecule
     // structureatoms : pointer array storing info on unit cell of crystal structure
