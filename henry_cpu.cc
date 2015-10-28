@@ -81,7 +81,7 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
 int main(int argc, char *argv[]) {
     // take in number of MC insertions as argument
     if (argc != 2) {
-        printf("Run as:\n./henry ninsertions\nwhere ninsertions = Number of MC insertions / (256 * 64) to correspond to CUDA code");
+        printf("Run as:\n./henry ninsertions\nwhere ninsertions = Number of MC insertions / (256 * 64) to correspond to CUDA code\n");
         exit(EXIT_FAILURE);
     }
     const int ninsertions = atoi(argv[1]) * 256 * 64;  // Number of Monte Carlo insertions
