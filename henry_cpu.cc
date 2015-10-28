@@ -34,10 +34,12 @@ const double R = 8.314;
 //   Loop over all atoms of unit cell of crystal structure
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
-double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
-                                     const StructureAtom * restrict structureatoms,
-                                     int natoms, double L)
+double ComputeBoltzmannFactorAtPoint(const double x, const double y, const double z,
+                                     const StructureAtom * restrict const structureatoms,
+                                     const int natoms, const double L)
 {
+    // Jeff: const-qualified arguments are shared (OpenMP 4.0, 2.14.1.2).
+
     // (x, y, z) : Cartesian coords of methane molecule
     // structureatoms : pointer array storing info on unit cell of crystal structure
     // natoms : number of atoms in crystal structure
@@ -47,7 +49,11 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
     // Jeff: This would greatly benefit from AoS-to-SoA transformation...
 
     // loop over atoms in crystal structure
+    #ifdef THREAD_INNER_LOOP
+    #pragma omp parallel for simd reduction(+:E) default(none)
+    #else
     #pragma omp simd
+    #endif
     for (int i = 0; i < natoms; i++) {
         //  Compute distance from (x, y, z) to this atom
 
@@ -202,12 +208,16 @@ int main(int argc, char *argv[])
     //  Brackets denote average over space
     //
     double KH = 0.0;  // will be Henry coefficient
+    #ifdef THREAD_OUTER_LOOP
     #pragma omp parallel default(none) firstprivate(L,natoms,seed) shared(KH,structureatoms)
+    #endif
     {
         std::default_random_engine generator(seed);  // default
         std::uniform_real_distribution<double> uniform01(0.0, 1.0); // uniformly distributed real no in [0,1]
 
+        #ifdef THREAD_OUTER_LOOP
         #pragma omp for reduction (+:KH)
+        #endif
         for (int i = 0; i < ninsertions; i++) {
             // generate random position in structure
             double x = L * uniform01(generator);
