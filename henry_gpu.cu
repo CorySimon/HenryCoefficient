@@ -65,25 +65,25 @@ __device__ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
         double dz = z - structureatoms[i].z;
         
         // apply nearest image convention for periodic boundary conditions
-        if (dx > L / 2.0)
-            dx = dx - L;
-        if (dy > L / 2.0)
-            dy = dy - L;
-        if (dz > L / 2.0)
-            dz = dz - L;
-        if (dx <= -L / 2.0)
-            dx = dx + L;
-        if (dy <= -L / 2.0)
-            dy = dy + L;
-        if (dz <= -L / 2.0)
-            dz = dz + L;
+        const double boxupper = 0.5 * L;
+        const double boxlower = -0.5 * L;
+        
+        dx = (dx >  boxupper) ? dx-L : dx;
+        dx = (dx >  boxupper) ? dx-L : dx;
+        dy = (dy >  boxupper) ? dy-L : dy;
+        dy = (dy <= boxlower) ? dy-L : dy;
+        dz = (dz <= boxlower) ? dz-L : dz;
+        dz = (dz <= boxlower) ? dz-L : dz;
 
         // compute inverse distance
         double rinv = rsqrt(dx*dx + dy*dy + dz*dz);
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
-        // Lennard-Jones potential (not efficient, but for clarity)
-        E += 4.0 * structureatoms[i].epsilon * (pow(structureatoms[i].sigma * rinv, 12) - pow(structureatoms[i].sigma * rinv, 6));
+        // Lennard-Jones potential (this is the efficient way to compute it)
+        double sig_ovr_r = rinv * structureatoms[i].sigma;
+        double sig_ovr_r6 = pow(sig_ovr_r, 6);
+        double sig_ovr_r12 = sig_ovr_r6 * sig_ovr_r6;
+        E += 4.0 * structureatoms[i].epsilon * (sig_ovr_r12 - sig_ovr_r6);
     }
     return exp(-E / (R * T));  // return Boltzmann factor
 }
