@@ -44,7 +44,10 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
     // L : box length
     double E = 0.0;
 
+    // Jeff: This would greatly benefit from AoS-to-SoA transformation...
+
     // loop over atoms in crystal structure
+    #pragma omp for simd
     for (int i = 0; i < natoms; i++) {
         //  Compute distance from (x, y, z) to this atom
 
@@ -54,25 +57,39 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
         double dz = z - structureatoms[i].z;
 
         // apply nearest image convention for periodic boundary conditions
-        if (dx > L / 2.0)
+        const double boxupper = 0.5*L;
+        const double boxlower = -0.5*L;
+#if 0
+        if (dx > boxupper)
             dx = dx - L;
-        if (dy > L / 2.0)
+        if (dy > boxupper)
             dy = dy - L;
-        if (dz > L / 2.0)
+        if (dz > boxupper)
             dz = dz - L;
-        if (dx <= -L / 2.0)
+        if (dx <= boxlower)
             dx = dx + L;
-        if (dy <= -L / 2.0)
+        if (dy <= boxlower)
             dy = dy + L;
-        if (dz <= -L / 2.0)
+        if (dz <= boxlower)
             dz = dz + L;
+#else
+        dx = (dx >  boxupper) ? dx-L : dx;
+        dx = (dx >  boxupper) ? dx-L : dx;
+        dy = (dy >  boxupper) ? dy-L : dy;
+        dy = (dy <= boxlower) ? dy-L : dy;
+        dz = (dz <= boxlower) ? dz-L : dz;
+        dz = (dz <= boxlower) ? dz-L : dz;
+#endif
 
         // distance
         double r = sqrt(dx*dx + dy*dy + dz*dz);
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
         // Lennard-Jones potential (not efficient, but for clarity)
-        E += 4.0 * structureatoms[i].epsilon * (pow(structureatoms[i].sigma / r, 12) - pow(structureatoms[i].sigma / r, 6));
+        const double sas   = structureatoms[i].sigma / r;
+        const double sas6  = pow(sas,6);
+        const double sas12 = sas6*sas6;
+        E += 4 * structureatoms[i].epsilon * (sas12-sas6);
     }
     return exp(-E / (R * T));  // return Boltzmann factor
 }
