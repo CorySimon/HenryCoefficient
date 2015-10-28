@@ -57,39 +57,25 @@ double ComputeBoltzmannFactorAtPoint(const double x, const double y, const doubl
         double dz = z - structureatoms[i].z;
 
         // apply nearest image convention for periodic boundary conditions
-        const double boxupper = 0.5*L;
-        const double boxlower = -0.5*L;
-#if 0
-        if (dx > boxupper)
-            dx = dx - L;
-        if (dy > boxupper)
-            dy = dy - L;
-        if (dz > boxupper)
-            dz = dz - L;
-        if (dx <= boxlower)
-            dx = dx + L;
-        if (dy <= boxlower)
-            dy = dy + L;
-        if (dz <= boxlower)
-            dz = dz + L;
-#else
+        const double boxupper = 0.5 * L;
+        const double boxlower = -0.5 * L;
+        
         dx = (dx >  boxupper) ? dx-L : dx;
         dx = (dx >  boxupper) ? dx-L : dx;
         dy = (dy >  boxupper) ? dy-L : dy;
         dy = (dy <= boxlower) ? dy-L : dy;
         dz = (dz <= boxlower) ? dz-L : dz;
         dz = (dz <= boxlower) ? dz-L : dz;
-#endif
 
         // distance
         double r = sqrt(dx*dx + dy*dy + dz*dz);
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
-        // Lennard-Jones potential (not efficient, but for clarity)
+        // Lennard-Jones potential
         const double sas   = structureatoms[i].sigma / r;
-        const double sas6  = pow(sas,6);
-        const double sas12 = sas6*sas6;
-        E += 4 * structureatoms[i].epsilon * (sas12-sas6);
+        const double sas6  = pow(sas, 6);
+        const double sas12 = sas6 * sas6;
+        E += 4.0 * structureatoms[i].epsilon * (sas12 - sas6);
     }
     return exp(-E / (R * T));  // return Boltzmann factor
 }
