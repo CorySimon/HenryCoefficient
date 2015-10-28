@@ -6,10 +6,12 @@
 #include <cstdlib>
 #include <sstream>
 #include <map>
-#include<random>
+#include <random>
+
+#include <omp.h>
 
 // data for atom of crystal structure
-//    Unit cell of crystal structure can then be stored 
+//    Unit cell of crystal structure can then be stored
 //    as pointer array of StructureAtom's
 struct StructureAtom {
     // Cartesian position, units: A
@@ -32,17 +34,20 @@ const double R = 8.314;
 //   Loop over all atoms of unit cell of crystal structure
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
-double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
-                                       StructureAtom * structureatoms,
-                                       int natoms,
-                                       double L) {
+double ComputeBoltzmannFactorAtPoint(const double x, const double y, const double z,
+                                     const StructureAtom * restrict const structureatoms,
+                                     const int natoms, const double L)
+{
     // (x, y, z) : Cartesian coords of methane molecule
     // structureatoms : pointer array storing info on unit cell of crystal structure
     // natoms : number of atoms in crystal structure
     // L : box length
     double E = 0.0;
-    
+
+    // Jeff: This would greatly benefit from AoS-to-SoA transformation...
+
     // loop over atoms in crystal structure
+    #pragma omp simd
     for (int i = 0; i < natoms; i++) {
         //  Compute distance from (x, y, z) to this atom
 
@@ -50,27 +55,41 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
         double dx = x - structureatoms[i].x;
         double dy = y - structureatoms[i].y;
         double dz = z - structureatoms[i].z;
-        
+
         // apply nearest image convention for periodic boundary conditions
-        if (dx > L / 2.0)
+        const double boxupper = 0.5*L;
+        const double boxlower = -0.5*L;
+#if 0
+        if (dx > boxupper)
             dx = dx - L;
-        if (dy > L / 2.0)
+        if (dy > boxupper)
             dy = dy - L;
-        if (dz > L / 2.0)
+        if (dz > boxupper)
             dz = dz - L;
-        if (dx <= -L / 2.0)
+        if (dx <= boxlower)
             dx = dx + L;
-        if (dy <= -L / 2.0)
+        if (dy <= boxlower)
             dy = dy + L;
-        if (dy <= -L / 2.0)
-            dy = dy + L;
+        if (dz <= boxlower)
+            dz = dz + L;
+#else
+        dx = (dx >  boxupper) ? dx-L : dx;
+        dx = (dx >  boxupper) ? dx-L : dx;
+        dy = (dy >  boxupper) ? dy-L : dy;
+        dy = (dy <= boxlower) ? dy-L : dy;
+        dz = (dz <= boxlower) ? dz-L : dz;
+        dz = (dz <= boxlower) ? dz-L : dz;
+#endif
 
         // distance
         double r = sqrt(dx*dx + dy*dy + dz*dz);
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
         // Lennard-Jones potential (not efficient, but for clarity)
-        E += 4.0 * structureatoms[i].epsilon * (pow(structureatoms[i].sigma / r, 12) - pow(structureatoms[i].sigma / r, 6));
+        const double sas   = structureatoms[i].sigma / r;
+        const double sas6  = pow(sas,6);
+        const double sas12 = sas6*sas6;
+        E += 4 * structureatoms[i].epsilon * (sas12-sas6);
     }
     return exp(-E / (R * T));  // return Boltzmann factor
 }
@@ -78,13 +97,16 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
 // Inserts a methane molecule at a random position inside the structure
 // Calls function to compute Boltzmann factor at this point
 // Stores Boltzmann factor computed at this thread in deviceBoltzmannFactors
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     // take in number of MC insertions as argument
     if (argc != 2) {
-        printf("Run as:\n./henry ninsertions\nwhere ninsertions = Number of MC insertions / (256 * 64) to correspond to CUDA code");
+        printf("Run as:\n./henry ninsertions\nwhere ninsertions = Number of MC insertions / (256 * 64) to correspond to CUDA code\n");
         exit(EXIT_FAILURE);
     }
-    int ninsertions = atoi(argv[1]) * 256 * 64;  // Number of Monte Carlo insertions
+    const int ninsertions = atoi(argv[1]) * 256 * 64;  // Number of Monte Carlo insertions
+
+    printf("Running on %d threads\n", omp_get_max_threads());
 
     //
     // Energetic model for interactions of methane molecule with atoms of framework
@@ -96,7 +118,7 @@ int main(int argc, char *argv[]) {
     epsilons["O"] = 66.884614;
     epsilons["C"] = 88.480032;
     epsilons["H"] = 57.276566;
-    
+
     // Sigma parameters for Lennard-Jones potential (A)
     std::map<std::string, double> sigmas;
     sigmas["Zn"] = 3.095775;
@@ -121,12 +143,12 @@ int main(int argc, char *argv[]) {
     std::istringstream istream(line);
 
     double L;
-    istream >> L;   
+    istream >> L;
     printf("L = %f\n", L);
 
     // waste line
     getline(materialfile, line);
-    
+
     // get number of atoms
     getline(materialfile, line);
     int natoms;  // number of atoms
@@ -134,7 +156,7 @@ int main(int argc, char *argv[]) {
     istream.clear();
     istream >> natoms;
     printf("%d atoms\n", natoms);
-    
+
     // waste line
     getline(materialfile, line);
 
@@ -160,20 +182,19 @@ int main(int argc, char *argv[]) {
         structureatoms[i].epsilon = epsilons[element];
         structureatoms[i].sigma = sigmas[element];
 
-//        printf("%d. %s, (%f, %f, %f), eps = %f, sig = %f\n", 
-//            atomno, element.c_str(), 
-//            structureatoms[i].x, structureatoms[i].y, structureatoms[i].z,
-//            structureatoms[i].epsilon,
-//            structureatoms[i].sigma);
+        // printf("%d. %s, (%f, %f, %f), eps = %f, sig = %f\n",
+        //     atomno, element.c_str(),
+        //     structureatoms[i].x, structureatoms[i].y, structureatoms[i].z,
+        //     structureatoms[i].epsilon,
+        //     structureatoms[i].sigma);
     }
-    
+
     //
     // Set up random number generator
     //
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::default_random_engine generator(seed);  // default
-//    std::mt19937 generator(seed);  // Mersenne Twister algo
-    std::uniform_real_distribution<double> uniform01(0.0, 1.0); // uniformly distributed real no in [0,1]
+    const unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+
+    double t0 = omp_get_wtime();
 
     //
     //  Compute the Henry coefficient in parallel
@@ -181,22 +202,32 @@ int main(int argc, char *argv[]) {
     //  Brackets denote average over space
     //
     double KH = 0.0;  // will be Henry coefficient
-    #pragma omp parallel for
-    for (int i = 0; i < ninsertions; i++) {
-        // generate random position in structure
-        double x = L * uniform01(generator);
-        double y = L * uniform01(generator);
-        double z = L * uniform01(generator);
-        // compute Boltzmann factor
-        KH += ComputeBoltzmannFactorAtPoint(x, y, z,
-                                       structureatoms,
-                                       natoms,
-                                       L);
+    #pragma omp parallel default(none) firstprivate(L,natoms,seed) shared(KH,structureatoms)
+    {
+        std::default_random_engine generator(seed);  // default
+        std::uniform_real_distribution<double> uniform01(0.0, 1.0); // uniformly distributed real no in [0,1]
+
+        #pragma omp for reduction (+:KH)
+        for (int i = 0; i < ninsertions; i++) {
+            // generate random position in structure
+            double x = L * uniform01(generator);
+            double y = L * uniform01(generator);
+            double z = L * uniform01(generator);
+            // compute Boltzmann factor
+            KH += ComputeBoltzmannFactorAtPoint(x, y, z, structureatoms, natoms, L);
+        }
     }
+
+    double t1 = omp_get_wtime();
+    double dt = t1-t0;
+
     // KH = < e^{-E/(kB/T)} > / (RT)
     KH = KH / (ninsertions * R * T);
     printf("Henry constant = %e mol/(m3 - Pa)\n", KH);
     printf("Number of insertions: %d\n", ninsertions);
-    
+    printf("Number of insertions per second: %lf\n", ninsertions/dt);
+    // compare to http://devblogs.nvidia.com/parallelforall/accelerating-materials-discovery-cuda/
+    printf("FOM: %lf\n", ninsertions/dt/10000);
+
     return EXIT_SUCCESS;
 }
