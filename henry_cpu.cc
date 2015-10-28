@@ -47,7 +47,7 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
     // Jeff: This would greatly benefit from AoS-to-SoA transformation...
 
     // loop over atoms in crystal structure
-    #pragma omp for simd
+    #pragma omp simd
     for (int i = 0; i < natoms; i++) {
         //  Compute distance from (x, y, z) to this atom
 
