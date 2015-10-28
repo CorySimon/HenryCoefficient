@@ -15,13 +15,13 @@
 //    as pointer array of StructureAtom's
 struct StructureAtom {
     // Cartesian position, units: A
-    double x;
-    double y;
-    double z;
+    double * restrict x;
+    double * restrict y;
+    double * restrict z;
     // Lennard-Jones epsilon parameter with adsorbate
-    double epsilon;  // units: K
+    double * restrict epsilon;  // units: K
     // Lennard-Jones sigma parameter with adsorbate
-    double sigma;  // units: A
+    double * restrict sigma;  // units: A
 };
 
 // temperature, Kelvin
@@ -35,7 +35,7 @@ const double R = 8.314;
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
 double ComputeBoltzmannFactorAtPoint(const double x, const double y, const double z,
-                                     const StructureAtom * restrict const structureatoms,
+                                     const StructureAtom const & structureatoms,
                                      const int natoms, const double L)
 {
     // Jeff: const-qualified arguments are shared (OpenMP 4.0, 2.14.1.2).
@@ -58,9 +58,9 @@ double ComputeBoltzmannFactorAtPoint(const double x, const double y, const doubl
         //  Compute distance from (x, y, z) to this atom
 
         // compute distances in each coordinate
-        double dx = x - structureatoms[i].x;
-        double dy = y - structureatoms[i].y;
-        double dz = z - structureatoms[i].z;
+        double dx = x - structureatoms.x[i];
+        double dy = y - structureatoms.y[i];
+        double dz = z - structureatoms.z[i];
 
         // apply nearest image convention for periodic boundary conditions
         const double boxupper = 0.5*L;
@@ -92,10 +92,10 @@ double ComputeBoltzmannFactorAtPoint(const double x, const double y, const doubl
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
         // Lennard-Jones potential (not efficient, but for clarity)
-        const double sas   = structureatoms[i].sigma / r;
+        const double sas   = structureatoms.sigma[i] / r;
         const double sas6  = pow(sas,6);
         const double sas12 = sas6*sas6;
-        E += 4 * structureatoms[i].epsilon * (sas12-sas6);
+        E += 4 * structureatoms.epsilon[i] * (sas12-sas6);
     }
     return exp(-E / (R * T));  // return Boltzmann factor
 }
@@ -135,7 +135,6 @@ int main(int argc, char *argv[])
     //
     // Import unit cell of nanoporous material IRMOF-1
     //
-    StructureAtom * structureatoms;  // store data in pointer array here
     // open crystal structure file
     std::ifstream materialfile("IRMOF-1.cssr");
     if (materialfile.fail()) {
@@ -167,7 +166,12 @@ int main(int argc, char *argv[])
     getline(materialfile, line);
 
     // Allocate space for material atoms and epsilons/sigmas
-    structureatoms = (StructureAtom *) malloc(natoms * sizeof(StructureAtom));
+    StructureAtom structureatoms;  // store data in pointer array here
+    structureatoms.x       = new double[natoms];
+    structureatoms.y       = new double[natoms];
+    structureatoms.z       = new double[natoms];
+    structureatoms.epsilon = new double[natoms];
+    structureatoms.sigma   = new double[natoms];
 
     // read atom coordinates
     for (int i = 0; i < natoms; i++) {
@@ -181,18 +185,11 @@ int main(int argc, char *argv[])
 
         istream >> atomno >> element >> xf >> yf >> zf;
         // load structureatoms
-        structureatoms[i].x = L * xf;
-        structureatoms[i].y = L * yf;
-        structureatoms[i].z = L * zf;
-
-        structureatoms[i].epsilon = epsilons[element];
-        structureatoms[i].sigma = sigmas[element];
-
-        // printf("%d. %s, (%f, %f, %f), eps = %f, sig = %f\n",
-        //     atomno, element.c_str(),
-        //     structureatoms[i].x, structureatoms[i].y, structureatoms[i].z,
-        //     structureatoms[i].epsilon,
-        //     structureatoms[i].sigma);
+        structureatoms.x[i]       = L * xf;
+        structureatoms.y[i]       = L * yf;
+        structureatoms.z[i]       = L * zf;
+        structureatoms.epsilon[i] = epsilons[element];
+        structureatoms.sigma[i]   = sigmas[element];
     }
 
     //
