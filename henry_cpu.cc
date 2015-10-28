@@ -64,8 +64,8 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
             dx = dx + L;
         if (dy <= -L / 2.0)
             dy = dy + L;
-        if (dy <= -L / 2.0)
-            dy = dy + L;
+        if (dz <= -L / 2.0)
+            dz = dz + L;
 
         // distance
         double r = sqrt(dx*dx + dy*dy + dz*dz);
