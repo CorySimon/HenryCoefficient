@@ -106,6 +106,8 @@ int main(int argc, char *argv[])
     }
     const int ninsertions = atoi(argv[1]) * 256 * 64;  // Number of Monte Carlo insertions
 
+    printf("Running on %d threads\n", omp_get_max_threads());
+
     //
     // Energetic model for interactions of methane molecule with atoms of framework
     //    pairwise Lennard-Jones potentials
@@ -221,7 +223,6 @@ int main(int argc, char *argv[])
 
     // KH = < e^{-E/(kB/T)} > / (RT)
     KH = KH / (ninsertions * R * T);
-    printf("Running on %d threads\n", omp_get_max_threads());
     printf("Henry constant = %e mol/(m3 - Pa)\n", KH);
     printf("Number of insertions: %d\n", ninsertions);
     printf("Number of insertions per second: %lf\n", ninsertions/dt);
