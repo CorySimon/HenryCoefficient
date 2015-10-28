@@ -9,7 +9,7 @@
 #include<random>
 
 // data for atom of crystal structure
-//    Unit cell of crystal structure can then be stored 
+//    Unit cell of crystal structure can then be stored
 //    as pointer array of StructureAtom's
 struct StructureAtom {
     // Cartesian position, units: A
@@ -41,7 +41,7 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
     // natoms : number of atoms in crystal structure
     // L : box length
     double E = 0.0;
-    
+
     // loop over atoms in crystal structure
     for (int i = 0; i < natoms; i++) {
         //  Compute distance from (x, y, z) to this atom
@@ -50,7 +50,7 @@ double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
         double dx = x - structureatoms[i].x;
         double dy = y - structureatoms[i].y;
         double dz = z - structureatoms[i].z;
-        
+
         // apply nearest image convention for periodic boundary conditions
         if (dx > L / 2.0)
             dx = dx - L;
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
     epsilons["O"] = 66.884614;
     epsilons["C"] = 88.480032;
     epsilons["H"] = 57.276566;
-    
+
     // Sigma parameters for Lennard-Jones potential (A)
     std::map<std::string, double> sigmas;
     sigmas["Zn"] = 3.095775;
@@ -121,12 +121,12 @@ int main(int argc, char *argv[]) {
     std::istringstream istream(line);
 
     double L;
-    istream >> L;   
+    istream >> L;
     printf("L = %f\n", L);
 
     // waste line
     getline(materialfile, line);
-    
+
     // get number of atoms
     getline(materialfile, line);
     int natoms;  // number of atoms
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
     istream.clear();
     istream >> natoms;
     printf("%d atoms\n", natoms);
-    
+
     // waste line
     getline(materialfile, line);
 
@@ -160,13 +160,13 @@ int main(int argc, char *argv[]) {
         structureatoms[i].epsilon = epsilons[element];
         structureatoms[i].sigma = sigmas[element];
 
-//        printf("%d. %s, (%f, %f, %f), eps = %f, sig = %f\n", 
-//            atomno, element.c_str(), 
-//            structureatoms[i].x, structureatoms[i].y, structureatoms[i].z,
-//            structureatoms[i].epsilon,
-//            structureatoms[i].sigma);
+        // printf("%d. %s, (%f, %f, %f), eps = %f, sig = %f\n",
+        //     atomno, element.c_str(),
+        //     structureatoms[i].x, structureatoms[i].y, structureatoms[i].z,
+        //     structureatoms[i].epsilon,
+        //     structureatoms[i].sigma);
     }
-    
+
     //
     // Set up random number generator
     //
@@ -197,6 +197,6 @@ int main(int argc, char *argv[]) {
     KH = KH / (ninsertions * R * T);
     printf("Henry constant = %e mol/(m3 - Pa)\n", KH);
     printf("Number of insertions: %d\n", ninsertions);
-    
+
     return EXIT_SUCCESS;
 }
