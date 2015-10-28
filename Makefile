@@ -1,23 +1,25 @@
-CC = nvcc
-MPCC = nvcc
-OPENMP = 
-CFLAGS = -O3
-NVCCFLAGS = -O3 -arch sm_30
-LIBS = -lm
+CC        := icc
+CXX       := icpc
+MPCC 	  := nvcc
+CFLAGS    := -O3 -std=c99 -qopenmp
+CXXFLAGS  := -O3 -std=c++11 -qopenmp -restrict -DTHREAD_OUTER_LOOP
+NVCCFLAGS := -O3 -arch sm_30
+CXXLIBS   := -lm
+NVCCLIBS  := -L/usr/local/cuda/lib64
 
-all: henry henry_serial
+all: henry_cpu # henry_gpu
 
-henry: henry.o
-	$(CC) -o $@ $(NVCCLIBS) -L/usr/local/cuda/lib64 henry.o 
+henry_gpu: henry_gpu.o
+	$(CC) $(NVCCFLAGS)$< $(NVCCLIBS) -o $@
 
-henry.o: henry.cu 
-	$(CC) -c $(NVCCFLAGS) henry.cu
+henry_gpu.o: henry_gpu.cu
+	$(CC) $(NVCCFLAGS) -c $< -o $@
 
-henry_serial: henry_serial.o
-	g++ -o $@ henry_serial.o -fopenmp
+henry_cpu: henry_cpu.o
+	$(CXX) $(CXXFLAGS) $< -o $@
 
-henry_serial.o: henry_serial.cc
-	g++ -c henry_serial.cc -std=c++11 -fopenmp
+henry_cpu.o: henry_cpu.cc
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-clean: 
-	rm *.o 
+clean:
+	rm *.o
