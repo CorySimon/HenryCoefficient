@@ -50,7 +50,7 @@ double ComputeBoltzmannFactorAtPoint(const double x, const double y, const doubl
 
     // loop over atoms in crystal structure
     #ifdef THREAD_INNER_LOOP
-    #pragma omp parallel for simd reduction(+:E) default(none)
+    #pragma omp parallel for simd reduction(+:E) default(none) shared(structureatoms)
     #else
     #pragma omp simd
     #endif
