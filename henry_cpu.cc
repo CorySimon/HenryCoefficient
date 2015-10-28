@@ -33,9 +33,9 @@ const double R = 8.314;
 //   Find nearest image to methane at point (x, y, z) for application of periodic boundary conditions
 //   Compute energy contribution due to this atom via the Lennard-Jones potential
 double ComputeBoltzmannFactorAtPoint(double x, double y, double z,
-                                       StructureAtom * structureatoms,
-                                       int natoms,
-                                       double L) {
+                                     const StructureAtom * restrict structureatoms,
+                                     int natoms, double L)
+{
     // (x, y, z) : Cartesian coords of methane molecule
     // structureatoms : pointer array storing info on unit cell of crystal structure
     // natoms : number of atoms in crystal structure
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
         printf("Run as:\n./henry ninsertions\nwhere ninsertions = Number of MC insertions / (256 * 64) to correspond to CUDA code");
         exit(EXIT_FAILURE);
     }
-    int ninsertions = atoi(argv[1]) * 256 * 64;  // Number of Monte Carlo insertions
+    const int ninsertions = atoi(argv[1]) * 256 * 64;  // Number of Monte Carlo insertions
 
     //
     // Energetic model for interactions of methane molecule with atoms of framework
@@ -170,10 +170,7 @@ int main(int argc, char *argv[]) {
     //
     // Set up random number generator
     //
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::default_random_engine generator(seed);  // default
-//    std::mt19937 generator(seed);  // Mersenne Twister algo
-    std::uniform_real_distribution<double> uniform01(0.0, 1.0); // uniformly distributed real no in [0,1]
+    const unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
 
     //
     //  Compute the Henry coefficient in parallel
@@ -181,17 +178,20 @@ int main(int argc, char *argv[]) {
     //  Brackets denote average over space
     //
     double KH = 0.0;  // will be Henry coefficient
-    #pragma omp parallel for
-    for (int i = 0; i < ninsertions; i++) {
-        // generate random position in structure
-        double x = L * uniform01(generator);
-        double y = L * uniform01(generator);
-        double z = L * uniform01(generator);
-        // compute Boltzmann factor
-        KH += ComputeBoltzmannFactorAtPoint(x, y, z,
-                                       structureatoms,
-                                       natoms,
-                                       L);
+    #pragma omp parallel default(none) firstprivate(L,natoms,seed) shared(KH,structureatoms)
+    {
+        std::default_random_engine generator(seed);  // default
+        std::uniform_real_distribution<double> uniform01(0.0, 1.0); // uniformly distributed real no in [0,1]
+
+        #pragma omp for reduction (+:KH)
+        for (int i = 0; i < ninsertions; i++) {
+            // generate random position in structure
+            double x = L * uniform01(generator);
+            double y = L * uniform01(generator);
+            double z = L * uniform01(generator);
+            // compute Boltzmann factor
+            KH += ComputeBoltzmannFactorAtPoint(x, y, z, structureatoms, natoms, L);
+        }
     }
     // KH = < e^{-E/(kB/T)} > / (RT)
     KH = KH / (ninsertions * R * T);
