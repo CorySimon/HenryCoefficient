@@ -31,12 +31,13 @@ plt.xlabel("Monte Carlo insertions (thousands)")
 plt.ylabel("Insertions per run time (10000/sec)")
 
 plt.plot(df_OpenMP["ninsertions"] / 1000.0, df_OpenMP["ninsertions"] / df_OpenMP["sec"] / 10000.0, marker='s', 
-        color='b', markersize=10, clip_on=False, label='OpenMP (24 OpenMP threads)')
+        color='b', markersize=10, clip_on=False, label='OpenMP (72 OpenMP threads)')
 #plt.plot(df_CUDA["ninsertions"] / 1000.0, df_CUDA["ninsertions"] / df_CUDA["sec"] / 10000.0, marker='o', 
 #        color='g', markersize=10, clip_on=False, label='CUDA (64 blocks, 256 threads)')
 
 plt.xlim([0, 9000])
-plt.ylim(ymin=0)
+#plt.ylim(ymin=0)
+plt.ylim([0, 1500])
 
 plt.legend(loc='center')
 
