@@ -35,7 +35,7 @@ plt.plot(df_OpenMP["ninsertions"] / 1000.0, df_OpenMP["ninsertions"] / df_OpenMP
 #plt.plot(df_CUDA["ninsertions"] / 1000.0, df_CUDA["ninsertions"] / df_CUDA["sec"] / 10000.0, marker='o', 
 #        color='g', markersize=10, clip_on=False, label='CUDA (64 blocks, 256 threads)')
 
-plt.xlim([0, 9000])
+plt.xlim([0, 8000])
 #plt.ylim(ymin=0)
 plt.ylim([0, 1500])
 
