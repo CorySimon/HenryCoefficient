@@ -67,15 +67,22 @@ double ComputeBoltzmannFactorAtPoint(const double x, const double y, const doubl
         dz = (dz <= boxlower) ? dz-L : dz;
         dz = (dz <= boxlower) ? dz-L : dz;
 
-        // distance
-        double r = sqrt(dx*dx + dy*dy + dz*dz);
+        // distance squared
+        double r2 = dx*dx + dy*dy + dz*dz;
 
         // Compute contribution to energy of adsorbate at (x, y, z) due to this atom
-        // Lennard-Jones potential
-        const double sas   = structureatoms[i].sigma / r;
-        const double sas6  = pow(sas, 6);
-        const double sas12 = sas6 * sas6;
-        E += 4.0 * structureatoms[i].epsilon * (sas12 - sas6);
+        // Lennard-Jones potential (this is the efficient way to compute it)
+//        const double sas   = structureatoms[i].sigma / r;
+//        const double sas6  = pow(sas, 6);
+//        const double sas12 = sas6 * sas6;
+//        E += 4.0 * structureatoms[i].epsilon * (sas12 - sas6);
+
+        // Compute inefficiently for clarity and to match GPU code
+        double sigma_over_r2 = structureatoms[i].sigma * structureatoms[i].sigma / r2;
+//        const double sas   = structureatoms[i].sigma / r;
+//        const double sas6  = pow(sas, 6);
+//        const double sas12 = sas6 * sas6;
+        E += 4.0 * structureatoms[i].epsilon * (pow(sigma_over_r2, 6) - pow(sigma_over_r2, 3));
     }
     return exp(-E / (R * T));  // return Boltzmann factor
 }
